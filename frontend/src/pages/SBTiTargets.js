@@ -30,6 +30,8 @@ const TARGET_TYPES = [
   { value: 'intensity_production', label: 'Intensity by Production' },
 ];
 
+const round2 = (v) => Math.round(v * 100) / 100;
+
 const healthOf = (progress) => {
   const a = progress?.achievement_percentage;
   if (a == null) return 'no_data';
@@ -68,7 +70,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
   const isIntensity = target.target_type !== 'percentage';
 
   return (
-    <Card className="p-5 border border-stone-200" data-testid={`sbti-target-${target.id}`}>
+    <Card className="p-5 border border-stone-200 bg-white" data-testid={`sbti-target-${target.id}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-semibold text-text-primary">{target.target_name}</h3>
@@ -201,12 +203,13 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
       {/* Percentage target charts — Reduction zone + current year bar */}
       {!isIntensity && progress?.chart_data && (() => {
         const targetVal = progress.target_line_value;
-        const areaData = progress.chart_data.map(d => ({
-          ...d,
-          target: targetVal,
-          _base: targetVal,
-          _gap: Math.max(d.projected - targetVal, 0),
-        }));
+        const baseVal = target.base_year_value;
+        const steps = Math.max(progress.chart_data.length - 1, 1);
+        const barColorFor = (actual, expected) => (expected == null || actual == null ? '#a8a29e' : actual > expected ? '#dc2626' : actual >= expected * 0.9 ? '#f59e0b' : '#16a34a');
+        const areaData = progress.chart_data.map((d, i) => {
+          const pathway = baseVal != null && targetVal != null ? round2(baseVal + ((targetVal - baseVal) * i) / steps) : null;
+          return { ...d, target: targetVal, pathway, _base: targetVal, _gap: Math.max(d.projected - targetVal, 0) };
+        });
         const currentYearData = progress.chart_data.find(d => d.year === new Date().getFullYear());
         const actualVal = currentYearData?.actual;
 
@@ -229,22 +232,35 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                     if (!active || !payload?.length) return null;
                     const proj = payload.find(p => p.dataKey === 'projected');
                     const tgt = payload.find(p => p.dataKey === 'target');
+                    const act = payload.find(p => p.dataKey === 'actual');
+                    const path = payload.find(p => p.dataKey === 'pathway');
                     return (
                       <div className="rounded-lg border border-stone-200 bg-white p-2.5 shadow-xl text-xs">
                         <p className="font-medium text-stone-700 mb-1">{label}</p>
+                        {act && act.value != null && <p style={{ color: barColorFor(act.value, path?.value) }}>Actual emissions: {act.value}</p>}
+                        {path && <p style={{ color: '#4f46e5' }}>Target for this year: {path.value}</p>}
                         {proj && <p style={{ color: '#f59e0b' }}>Projected (no reduction): {proj.value}</p>}
-                        {tgt && <p style={{ color: '#16a34a' }}>Target Value: {tgt.value}</p>}
+                        {tgt && <p style={{ color: '#16a34a' }}>Final target value: {tgt.value}</p>}
                       </div>
                     );
                   }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Area type="monotone" dataKey="_base" stackId="zone" fill="transparent" stroke="none" legendType="none" tooltipType="none" />
                   <Area type="monotone" dataKey="_gap" stackId="zone" fill={`url(#reductionGrad-${target.id})`} stroke="none" legendType="none" tooltipType="none" />
+                  <Bar dataKey="actual" name="Actual emissions" barSize={22} radius={[4, 4, 0, 0]} legendType="none">
+                    {areaData.map((d) => <Cell key={d.year} fill={barColorFor(d.actual, d.pathway)} />)}
+                  </Bar>
                   <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
-                  <Line type="monotone" dataKey="target" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} name="Target Value" />
+                  <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway (base → target)" />
+                  <Line type="monotone" dataKey="target" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} name="Final target value" />
                 </ComposedChart>
               </ResponsiveContainer>
-              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced</p>
+              <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-stone-500" data-testid={`sbti-bar-legend-${target.id}`}>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-green-600" />Within target</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />Close to target (within 10%)</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-600" />Above target</span>
+                <span>Shaded area = emissions to be reduced</span>
+              </div>
             </div>
 
             {actualVal != null && targetVal != null && (() => {
@@ -522,7 +538,7 @@ export default function SBTiTargetsPage() {
     };
     const visible = filter === 'all' ? items : items.filter(t => health(t) === filter);
     return (
-      <div className="space-y-5" data-testid={`sbti-${key}-panel`}>
+      <div className="space-y-8 pt-3 pb-4" data-testid={`sbti-${key}-panel`}>
         <SummaryCards termLabel={label} counts={counts} selected={filter} onSelect={setFilter} />
         {visible.length === 0 ? (
           <Card className="p-8 text-center text-text-muted">
@@ -556,7 +572,7 @@ export default function SBTiTargetsPage() {
       <ModulePageHeader title="SBTi Targets" icon={Target} iconClassName="border-orange-200 bg-orange-50 text-orange-700" testId="sbti-targets" />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl bg-stone-100 p-1.5" role="tablist" data-testid="sbti-term-tabs">
+        <div className="inline-flex rounded-full bg-stone-100 p-1.5" role="tablist" data-testid="sbti-term-tabs">
           {TERMS.map(t => (
             <button
               key={t.key}
@@ -564,7 +580,7 @@ export default function SBTiTargetsPage() {
               role="tab"
               aria-selected={term === t.key}
               onClick={() => { setTerm(t.key); setFilter('all'); }}
-              className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${term === t.key ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+              className={`flex items-center gap-2 rounded-full px-6 py-2 text-sm font-semibold transition-colors ${term === t.key ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
               data-testid={`sbti-tab-${t.key}`}
             >
               {t.tab}
