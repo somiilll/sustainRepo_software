@@ -263,7 +263,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                   <Bar dataKey="actual" name="Actual emissions" barSize={22} radius={[4, 4, 0, 0]} legendType="none">
                     {areaData.map((d) => <Cell key={d.year} fill={barColorFor(d.actual, d.pathway)} />)}
                   </Bar>
-                  <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projection === 'bau' ? 'BAU' : 'Projected (no reduction)'} />
+                  <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projection === 'bau' ? 'BAU (Business-as-Usual) forecasts' : 'Projected (no reduction)'} />
                   <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway" />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -520,7 +520,7 @@ export default function SBTiTargetsPage() {
     };
     const visible = filter === 'all' ? items : items.filter(t => health(t) === filter);
     return (
-      <div className="space-y-8 pt-3 pb-4" data-testid={`sbti-${key}-panel`}>
+      <div className="space-y-12 pt-3 pb-4" data-testid={`sbti-${key}-panel`}>
         <SummaryCards termLabel={label} counts={counts} selected={filter} onSelect={setFilter} />
         {visible.length === 0 ? (
           <Card className="p-8 text-center text-text-muted">
