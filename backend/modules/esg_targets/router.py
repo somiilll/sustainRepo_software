@@ -739,7 +739,7 @@ async def _single_year_series(target: dict, org_id: str, facility_ids, reporting
         a = float(base["value"]) if base_year and y == base_year else actuals.get(y)
         rows.append({"year_label": format_period(y, reporting_type), "year": y, "actual": round(a, 2) if a is not None else None,
                      "target": round(expected, 4) if expected is not None else None, "goal": goal if y == target_year else None,
-                     "status": "no_data", "is_current": y == cur, "is_future": y > cur})
+                     "status": "no_data", "is_current": y == cur, "is_future": y > cur, "is_baseline": bool(base_year) and y == base_year})
     return rows
 
 

@@ -45,7 +45,11 @@ const BarLabel = ({ x, y, width, value, index, rows, lower, single }) => {
 
 export function PeriodChart({ rows, lower, monthly, single = false }) {
   const now = rows.find((r) => r.is_current);
-  const tick = ({ x, y, payload }) => svgText({ x, y: y + 18, textAnchor: 'middle', fontSize: 12, fontWeight: payload.value === now?.label ? 700 : 400, fill: payload.value === now?.label ? '#1c1917' : '#78716c' }, String(payload.value));
+  const short = (v) => (rows.length > 6 ? String(v).replace(/^FY\s*\d{2}(\d{2})-\d{2}(\d{2})$/, 'FY$1-$2') : String(v));
+  const hasBase = rows.some((r) => r.is_baseline);
+  const tick = ({ x, y, payload }) => React.createElement('g', null,
+    svgText({ x, y: y + 18, textAnchor: 'middle', fontSize: 12, fontWeight: payload.value === now?.label ? 700 : 400, fill: payload.value === now?.label ? '#1c1917' : '#78716c' }, short(payload.value)),
+    rows.find((d) => d.label === payload.value)?.is_baseline && svgText({ x, y: y + 34, textAnchor: 'middle', fontSize: 11, fontWeight: 600, fill: INDIGO }, 'Baseline'));
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="period-chart">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -66,7 +70,7 @@ export function PeriodChart({ rows, lower, monthly, single = false }) {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 36, right: 24, left: 0, bottom: 4 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 4" stroke="#e7e5e4" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={tick} />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={tick} interval={0} height={hasBase ? 48 : 30} />
             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#78716c' }} tickFormatter={(v) => v.toLocaleString('en-US')} width={56} />
             <Bar dataKey="actual" barSize={30} radius={[4, 4, 0, 0]} isAnimationActive={false}>
               {rows.map((r) => <Cell key={r.label} fill={r.band ? BAND[r.band].fill : GREEN} />)}
