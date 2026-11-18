@@ -1068,9 +1068,11 @@ async def update_emission_record(
             if field in existing and field not in update_dict
         })
     await db[APPROVED_COLLECTION].update_one({"id": record_id}, update_operation)
+    if is_admin and existing.get("approval_status") == "approved":
+        await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": {"approval_status": "not_required"}})
     if is_admin and existing.get("approval_status") == "pending_approval":
         total_levels = max([c.get("total_levels") or 1 for c in cleared_requests] or [1])
-        settled = {"approval_status": "approved"}
+        settled = {"approval_status": "not_required"}
         if "log_creator_level" in existing:
             settled["log_acted_max"] = total_levels
         await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": settled})
