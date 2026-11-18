@@ -3,22 +3,40 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from shared.database.mongo import db
-from shared.utils.period_utils import extract_year
+from shared.utils.period_utils import extract_year, detect_type
 
 COLLECTION = "sbti_targets"
+
+
+def _target_year_passed(target: Dict) -> bool:
+    """True once the target year (FY ends March of its end year, CY ends December) has fully passed."""
+    period = target.get("target_year") or ""
+    year = extract_year(period)
+    if not year:
+        return False
+    now = datetime.now(timezone.utc)
+    end_year, end_month = (year + 1, 3) if detect_type(period) == "FY" else (year, 12)
+    return now.year > end_year or (now.year == end_year and now.month > end_month)
+
+
+def _with_status(target: Optional[Dict]) -> Optional[Dict]:
+    if target and target.get("status") == "active" and _target_year_passed(target):
+        target["status"] = "expired"
+    return target
 
 
 async def list_targets(org_id: str, term_type: Optional[str] = None) -> List[Dict]:
     query = {"organization_id": org_id}
     if term_type:
         query["term_type"] = term_type
-    return await db[COLLECTION].find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    targets = await db[COLLECTION].find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return [_with_status(t) for t in targets]
 
 
 async def get_target(target_id: str, org_id: str) -> Optional[Dict]:
-    return await db[COLLECTION].find_one(
+    return _with_status(await db[COLLECTION].find_one(
         {"id": target_id, "organization_id": org_id}, {"_id": 0}
-    )
+    ))
 
 
 async def create_target(org_id: str, data: dict, user_id: str) -> Dict:

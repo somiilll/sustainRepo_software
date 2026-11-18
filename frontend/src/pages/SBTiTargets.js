@@ -38,6 +38,7 @@ const STATUS_PILL = {
   on_track: { label: 'On track', cls: 'border-emerald-200 bg-emerald-50 text-emerald-800', dot: 'bg-emerald-600', text: 'text-emerald-700', bar: '#2f7a56' },
   at_risk: { label: 'At risk', cls: 'border-amber-200 bg-amber-50 text-amber-800', dot: 'bg-amber-500', text: 'text-amber-600', bar: '#d98a1d' },
   off_track: { label: 'Off track', cls: 'border-red-200 bg-red-50 text-red-700', dot: 'bg-red-600', text: 'text-red-700', bar: '#b4443c' },
+  expired: { label: 'Expired', cls: 'border-stone-200 bg-stone-50 text-stone-600', dot: 'bg-stone-400', text: 'text-stone-500', bar: '#a8a29e' },
   no_data: { label: 'No data', cls: 'border-stone-200 bg-stone-50 text-stone-600', dot: 'bg-stone-400', text: 'text-stone-500', bar: '#a8a29e' },
 };
 
@@ -64,6 +65,7 @@ const pathwayRows = (target, progress) => {
 
 // Health = this year's actual against this year's point on the base-to-target path
 const evaluate = (target, progress) => {
+  if (target.status === 'expired') return { health: 'expired' };
   if (!progress) return null;
   const thisYear = new Date().getFullYear();
   const rows = pathwayRows(target, progress);
@@ -121,6 +123,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
   const baseV = isIntensity ? target.base_year_intensity : target.base_year_value;
   const targetV = isIntensity ? target.target_intensity : target.target_value;
   const nowV = isIntensity ? progress?.current_intensity : progress?.current_value;
+  const expired = target.status === 'expired';
   const verdict = { on_track: 'better than the path', at_risk: 'within 10% of the path', off_track: 'above the path' }[ev?.health];
   const details = [
     ['Base year', target.base_year],
@@ -155,6 +158,10 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
 
       {progressError && (
         <LoadErrorState title="Progress unavailable" message={progressError} onRetry={loadProgress} testId={`sbti-target-progress-error-${target.id}`} />
+      )}
+
+      {expired && (
+        <p className="mt-4 rounded-xl bg-stone-50 p-4 text-sm text-stone-500" data-testid={`sbti-expired-${target.id}`}>This target has expired, so progress is no longer calculated.</p>
       )}
 
       <div className="mt-6 grid items-center gap-x-10 gap-y-5 lg:grid-cols-[200px_1fr]">

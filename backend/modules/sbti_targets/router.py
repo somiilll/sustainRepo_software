@@ -125,6 +125,9 @@ async def get_sbti_progress(
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
+    if target.get("status") == "expired":
+        return {"target": target, "expired": True, "achievement_percentage": None}
+
     now = datetime.now(timezone.utc)
     target_type = target.get("target_type", "percentage")
     base_yr = extract_year(target.get("base_year", "")) or 0
