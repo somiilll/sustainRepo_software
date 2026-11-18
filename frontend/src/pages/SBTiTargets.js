@@ -16,7 +16,7 @@ import { Target, Plus, Edit2, Trash2, TrendingDown, Zap } from 'lucide-react';
 import {
   ComposedChart, AreaChart, Area, BarChart, Bar, Cell,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend,
+  ResponsiveContainer, ReferenceLine, ReferenceDot, Legend,
 } from 'recharts';
 import { generateReportingYears } from '../utils/reportingYearUtils';
 import { LoadErrorState } from '../components/LoadErrorState';
@@ -32,11 +32,47 @@ const TARGET_TYPES = [
 
 const round2 = (v) => Math.round(v * 100) / 100;
 
-const healthOf = (progress) => {
-  const a = progress?.achievement_percentage;
-  if (a == null) return 'no_data';
-  return a >= 75 ? 'on_track' : a >= 40 ? 'at_risk' : 'off_track';
+const fmtNum = (v) => (v == null || Number.isNaN(Number(v)) ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }));
+
+const STATUS_PILL = {
+  on_track: { label: 'On track', cls: 'border-emerald-200 bg-emerald-50 text-emerald-800', dot: 'bg-emerald-600', text: 'text-emerald-700', bar: '#2f7a56' },
+  at_risk: { label: 'At risk', cls: 'border-amber-200 bg-amber-50 text-amber-800', dot: 'bg-amber-500', text: 'text-amber-600', bar: '#d98a1d' },
+  off_track: { label: 'Off track', cls: 'border-red-200 bg-red-50 text-red-700', dot: 'bg-red-600', text: 'text-red-700', bar: '#b4443c' },
+  no_data: { label: 'No data', cls: 'border-stone-200 bg-stone-50 text-stone-600', dot: 'bg-stone-400', text: 'text-stone-500', bar: '#a8a29e' },
 };
+
+const barColorFor = (actual, expected) => (expected == null || actual == null ? '#a8a29e' : actual > expected ? '#dc2626' : actual >= expected * 0.9 ? '#f59e0b' : '#16a34a');
+
+const bandOf = (actual, expected) => {
+  if (actual == null || expected == null) return 'no_data';
+  if (expected <= 0) return actual <= 0 ? 'on_track' : 'off_track';
+  return actual > expected ? 'off_track' : actual >= expected * 0.9 ? 'at_risk' : 'on_track';
+};
+
+const pathwayRows = (target, progress) => {
+  if (target.target_type !== 'percentage') return (progress?.trajectory || []).map(d => ({ ...d, pathway: d.expected }));
+  const rows = progress?.chart_data || [];
+  const bv = target.base_year_value;
+  const tv = progress?.target_line_value;
+  const steps = Math.max(rows.length - 1, 1);
+  return rows.map((d, i) => ({
+    ...d,
+    actual: i === 0 && bv != null ? bv : d.actual,
+    pathway: bv != null && tv != null ? round2(bv + ((tv - bv) * i) / steps) : null,
+  }));
+};
+
+// Health = this year's actual against this year's point on the base-to-target path
+const evaluate = (target, progress) => {
+  if (!progress) return null;
+  const thisYear = new Date().getFullYear();
+  const rows = pathwayRows(target, progress);
+  const row = rows.find(d => d.year === thisYear && d.actual != null) || [...rows].reverse().find(d => d.actual != null && d.year <= thisYear);
+  if (!row) return { health: 'no_data' };
+  return { health: bandOf(row.actual, row.pathway), actual: row.actual, expected: row.pathway, label: row.year_label };
+};
+
+const healthOf = (target, progress) => evaluate(target, progress)?.health || 'no_data';
 
 const SUMMARY_CARDS = [
   { key: 'all', dot: 'bg-stone-400', num: 'text-stone-900' },
@@ -65,61 +101,84 @@ function SummaryCards({ termLabel, counts, selected, onSelect }) {
   );
 }
 
+function Stat({ label, value, unit, tone = 'text-stone-900' }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{label}</div>
+      <div className={`mt-1 text-2xl font-semibold tracking-tight ${tone}`}>{value}{value !== '—' && unit && <span className="ml-1 text-sm font-medium text-stone-500">{unit}</span>}</div>
+    </div>
+  );
+}
+
 function TargetCard({ target, progress, progressError, onRetry: loadProgress, onEdit, onDelete }) {
   const [projection, setProjection] = useState('linear');
   const ach = progress?.achievement_percentage;
   const isIntensity = target.target_type !== 'percentage';
+  const ev = evaluate(target, progress);
+  const st = STATUS_PILL[ev?.health || 'no_data'];
+  const unit = target.unit || '';
+  const withUnit = (v) => (v == null ? '—' : `${fmtNum(v)}${unit ? ` ${unit}` : ''}`);
+  const baseV = isIntensity ? target.base_year_intensity : target.base_year_value;
+  const targetV = isIntensity ? target.target_intensity : target.target_value;
+  const nowV = isIntensity ? progress?.current_intensity : progress?.current_value;
+  const verdict = { on_track: 'better than the path', at_risk: 'within 10% of the path', off_track: 'above the path' }[ev?.health];
+  const details = [
+    ['Base year', target.base_year],
+    ['Target year', target.target_year],
+    ...(target.growth_rate != null ? [['Growth rate', `${target.growth_rate}% a year`]] : []),
+    ...(target.reduction_percentage != null ? [['Reduction target', `${target.reduction_percentage}%`]] : []),
+  ];
 
   return (
-    <Card className="p-5 border border-stone-200 bg-white" data-testid={`sbti-target-${target.id}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="font-semibold text-text-primary">{target.target_name}</h3>
-          <p className="text-xs text-text-muted">{target.kpi_name}</p>
+    <Card className="p-6 border border-stone-200 bg-white" data-testid={`sbti-target-${target.id}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <h3 className="text-lg font-semibold text-stone-900">{target.target_name}</h3>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500" data-testid={`sbti-type-${target.id}`}>{TARGET_TYPES.find(t => t.value === target.target_type)?.label}</span>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${st.cls}`} data-testid={`sbti-status-${target.id}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
+            </span>
+          </div>
+          <p className="mt-0.5 text-sm text-stone-500">{target.kpi_name}</p>
+          {ev?.expected != null && (
+            <p className="mt-2 text-sm text-stone-700" data-testid={`sbti-reason-${target.id}`}>
+              {ev.label}: <b>{withUnit(ev.actual)}</b> against <b>{withUnit(ev.expected)}</b> allowed on the target path, {verdict}.
+            </p>
+          )}
         </div>
-        <div className="flex gap-1">
-          <Badge variant="outline" className="text-xs">{TARGET_TYPES.find(t => t.value === target.target_type)?.label}</Badge>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(target)}><Edit2 className="w-3.5 h-3.5" /></Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(target)}><Trash2 className="w-3.5 h-3.5" /></Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-3 text-sm mb-3">
-        <div><span className="text-text-muted text-xs">Base Year</span><p className="font-medium">{target.base_year}</p></div>
-        <div><span className="text-text-muted text-xs">Target Year</span><p className="font-medium">{target.target_year}</p></div>
-        <div>
-          <span className="text-text-muted text-xs">{isIntensity ? 'Base Intensity' : 'Base Value'}</span>
-          <p className="font-medium">{isIntensity ? target.base_year_intensity : target.base_year_value?.toLocaleString()}</p>
-        </div>
-        <div>
-          <span className="text-text-muted text-xs">{isIntensity ? 'Target Intensity' : 'Target Value'}</span>
-          <p className="font-medium text-emerald-600">{isIntensity ? target.target_intensity : target.target_value?.toLocaleString()}</p>
+        <div className="flex shrink-0 gap-1">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onEdit(target)}><Edit2 className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500" onClick={() => onDelete(target)}><Trash2 className="w-4 h-4" /></Button>
         </div>
       </div>
-
-      {target.growth_rate != null && (
-        <p className="text-xs text-text-muted mb-2">Growth Rate: {target.growth_rate}% | Reduction: {target.reduction_percentage}%</p>
-      )}
 
       {progressError && (
         <LoadErrorState title="Progress unavailable" message={progressError} onRetry={loadProgress} testId={`sbti-target-progress-error-${target.id}`} />
       )}
 
-      {/* Achievement */}
-      {ach != null && (
-        <div className="flex items-center gap-3 mb-3">
-          <Progress value={ach} className="h-2 flex-1" />
-          <span className={`text-sm font-semibold ${ach >= 75 ? 'text-green-600' : ach >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{ach}%</span>
+      <div className="mt-6 grid items-center gap-x-10 gap-y-5 lg:grid-cols-[200px_1fr]">
+        <div data-testid={`sbti-achievement-${target.id}`}>
+          <div className={`text-5xl font-semibold tracking-tight ${ach != null ? st.text : 'text-stone-400'}`}>{ach != null ? `${ach}%` : '—'}</div>
+          <div className="mt-1 text-sm text-stone-500">of the way from base to target</div>
         </div>
-      )}
+        <div className="space-y-4">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-stone-200">
+            {ach != null && <div className="h-full rounded-full" style={{ width: `${ach}%`, background: st.bar }} />}
+          </div>
+          <div className="grid grid-cols-3 gap-4" data-testid={`sbti-stats-${target.id}`}>
+            <Stat label="Base" value={fmtNum(baseV)} unit={unit} />
+            <Stat label="Now" value={fmtNum(nowV)} unit={unit} tone={st.text} />
+            <Stat label="Target" value={fmtNum(targetV)} unit={unit} tone="text-emerald-700" />
+          </div>
+        </div>
+      </div>
 
-      {/* Current value */}
-      {progress && (
-        <div className="flex gap-4 text-xs text-text-muted">
-          {progress.current_value != null && <span>Current Value: <strong>{progress.current_value.toLocaleString()}</strong></span>}
-          {progress.current_intensity != null && <span>Current Intensity: <strong>{progress.current_intensity}</strong></span>}
-        </div>
-      )}
+      <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3 border-t border-stone-100 pt-4" data-testid={`sbti-details-${target.id}`}>
+        {details.map(([k, v]) => (
+          <div key={k}><dt className="text-xs text-stone-500">{k}</dt><dd className="text-sm font-medium text-stone-900">{v}</dd></div>
+        ))}
+      </dl>
 
       {/* Intensity trajectory charts */}
       {isIntensity && progress?.trajectory && (() => {
@@ -201,74 +260,83 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
         );
       })()}
 
-      {/* Percentage target charts — Reduction zone + current year bar */}
+      {/* Percentage target chart: actual bars, projection, target path, Now marker */}
       {!isIntensity && progress?.chart_data && (() => {
         const targetVal = progress.target_line_value;
-        const baseVal = target.base_year_value;
-        const steps = Math.max(progress.chart_data.length - 1, 1);
-        const barColorFor = (actual, expected) => (expected == null || actual == null ? '#a8a29e' : actual > expected ? '#dc2626' : actual >= expected * 0.9 ? '#f59e0b' : '#16a34a');
-        const rows = progress.chart_data.map((d, i) => ({ ...d, actual: i === 0 && baseVal != null ? baseVal : d.actual }));
+        const rows = pathwayRows(target, progress);
         const thisYear = new Date().getFullYear();
         const latest = [...rows].reverse().find(d => d.actual != null && d.year <= thisYear);
         const growth = (target.growth_rate ?? 0) / 100;
-        const areaData = rows.map((d, i) => {
-          const pathway = baseVal != null && targetVal != null ? round2(baseVal + ((targetVal - baseVal) * i) / steps) : null;
+        const areaData = rows.map((d) => {
           const bau = projection === 'bau'
             ? (latest && d.year >= latest.year ? round2(latest.actual * (1 + growth) ** (d.year - latest.year)) : null)
             : d.projected;
-          return { ...d, projectedLine: bau, pathway, _base: pathway ?? targetVal, _gap: bau != null ? Math.max(bau - (pathway ?? targetVal), 0) : 0 };
+          return { ...d, projectedLine: bau, _base: d.pathway ?? targetVal, _gap: bau != null ? Math.max(bau - (d.pathway ?? targetVal), 0) : 0 };
         });
+        const nowRow = areaData.find(d => d.year === thisYear && d.actual != null);
+        const lastRow = areaData[areaData.length - 1];
+        const projLabel = projection === 'bau' ? 'BAU (Business-as-Usual) forecasts' : 'Projected (no reduction)';
 
         return (
-          <div className="mt-4 space-y-5">
-            <div>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium text-stone-600">Emissions Reduction Pathway</p>
-                <div className="inline-flex rounded-full bg-stone-100 p-1" role="group" data-testid={`sbti-projection-toggle-${target.id}`}>
-                  {[['linear', 'Linear'], ['bau', 'BAU']].map(([k, label]) => (
-                    <button key={k} type="button" onClick={() => setProjection(k)} aria-pressed={projection === k}
-                      className={`rounded-full px-4 py-1 text-xs font-semibold transition-colors ${projection === k ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
-                      data-testid={`sbti-projection-${k}-${target.id}`}>{label}</button>
-                  ))}
-                </div>
+          <div className="mt-8">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-stone-700">Emissions Reduction Pathway</p>
+              <div className="inline-flex rounded-full bg-stone-100 p-1" role="group" data-testid={`sbti-projection-toggle-${target.id}`}>
+                {[['linear', 'Linear'], ['bau', 'BAU']].map(([k, label]) => (
+                  <button key={k} type="button" onClick={() => setProjection(k)} aria-pressed={projection === k}
+                    className={`rounded-full px-4 py-1 text-xs font-semibold transition-colors ${projection === k ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+                    data-testid={`sbti-projection-${k}-${target.id}`}>{label}</button>
+                ))}
               </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={areaData} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id={`reductionGrad-${target.id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                  <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
-                  <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
-                  <Tooltip content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    const proj = payload.find(p => p.dataKey === 'projectedLine');
-                    const act = payload.find(p => p.dataKey === 'actual');
-                    const path = payload.find(p => p.dataKey === 'pathway');
-                    return (
-                      <div className="rounded-lg border border-stone-200 bg-white p-2.5 shadow-xl text-xs">
-                        <p className="font-medium text-stone-700 mb-1">{label}</p>
-                        {act && act.value != null && <p style={{ color: barColorFor(act.value, path?.value) }}>Actual emissions: {act.value}</p>}
-                        {path && <p style={{ color: '#4f46e5' }}>Target for this year: {path.value}</p>}
-                        {proj && proj.value != null && <p style={{ color: '#f59e0b' }}>{projection === 'bau' ? 'BAU (from latest actual)' : 'Projected (no reduction)'}: {proj.value}</p>}
-                      </div>
-                    );
-                  }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Area type="monotone" dataKey="_base" stackId="zone" fill="transparent" stroke="none" legendType="none" tooltipType="none" />
-                  <Area type="monotone" dataKey="_gap" stackId="zone" fill={`url(#reductionGrad-${target.id})`} stroke="none" legendType="none" tooltipType="none" />
-                  <Bar dataKey="actual" name="Actual emissions" barSize={22} radius={[4, 4, 0, 0]} legendType="none">
-                    {areaData.map((d) => <Cell key={d.year} fill={barColorFor(d.actual, d.pathway)} />)}
-                  </Bar>
-                  <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projection === 'bau' ? 'BAU (Business-as-Usual) forecasts' : 'Projected (no reduction)'} />
-                  <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway" />
-                </ComposedChart>
-              </ResponsiveContainer>
-              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced (between the projection and the target pathway)</p>
             </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={areaData} margin={{ top: 28, right: 56, left: 10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`reductionGrad-${target.id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                <XAxis dataKey="year_label" tick={{ fontSize: 11 }} stroke="#78716c" angle={-30} textAnchor="end" height={64} />
+                <YAxis tick={{ fontSize: 11 }} stroke="#78716c" />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const proj = payload.find(p => p.dataKey === 'projectedLine');
+                  const act = payload.find(p => p.dataKey === 'actual');
+                  const path = payload.find(p => p.dataKey === 'pathway');
+                  return (
+                    <div className="rounded-lg border border-stone-200 bg-white p-2.5 shadow-xl text-xs">
+                      <p className="font-medium text-stone-700 mb-1">{label}</p>
+                      {act && act.value != null && <p style={{ color: barColorFor(act.value, path?.value) }}>Actual emissions: {act.value}</p>}
+                      {path && <p style={{ color: '#2f7a56' }}>Target for this year: {path.value}</p>}
+                      {proj && proj.value != null && <p style={{ color: '#f59e0b' }}>{projLabel}: {proj.value}</p>}
+                    </div>
+                  );
+                }} />
+                <Area type="monotone" dataKey="_base" stackId="zone" fill="transparent" stroke="none" legendType="none" tooltipType="none" />
+                <Area type="monotone" dataKey="_gap" stackId="zone" fill={`url(#reductionGrad-${target.id})`} stroke="none" legendType="none" tooltipType="none" />
+                <Bar dataKey="actual" name="Actual emissions" barSize={22} radius={[4, 4, 0, 0]}>
+                  {areaData.map((d) => <Cell key={d.year} fill={barColorFor(d.actual, d.pathway)} />)}
+                </Bar>
+                <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projLabel} />
+                <Line type="linear" dataKey="pathway" stroke="#2f7a56" strokeWidth={2.5} dot={{ r: 3 }} name="Target path" />
+                {nowRow && (
+                  <ReferenceLine x={nowRow.year_label} stroke="#1e40af" strokeDasharray="4 3" strokeWidth={1.5}
+                    label={{ value: `Now: ${fmtNum(nowRow.actual)}${unit ? ` ${unit}` : ''}`, position: 'top', fill: '#1e40af', fontSize: 12, fontWeight: 600 }} />
+                )}
+                {lastRow && targetVal != null && (
+                  <ReferenceDot x={lastRow.year_label} y={targetVal} r={5} fill="#2f7a56" stroke="#fff" strokeWidth={2}
+                    label={{ value: `Target: ${fmtNum(targetVal)}${unit ? ` ${unit}` : ''}`, position: 'top', fill: '#2f7a56', fontSize: 12, fontWeight: 600 }} />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-stone-600" data-testid={`sbti-legend-${target.id}`}>
+              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-stone-400" />Actual emissions</span>
+              <span className="flex items-center gap-2"><span className="w-6 border-t-2 border-dashed border-amber-500" />{projLabel}</span>
+              <span className="flex items-center gap-2"><span className="w-6 border-t-[3px] border-emerald-700" />Target path</span>
+            </div>
+            <p className="mt-2 text-center text-xs text-stone-400">Shaded area = emissions to be reduced (between the projection and the target path)</p>
           </div>
         );
       })()}
@@ -511,7 +579,7 @@ export default function SBTiTargetsPage() {
 
   const renderTerm = ({ key, label }) => {
     const items = targets[key];
-    const health = (t) => healthOf(progressById[t.id]);
+    const health = (t) => healthOf(t, progressById[t.id]);
     const counts = {
       all: items.length,
       on_track: items.filter(t => health(t) === 'on_track').length,
@@ -520,7 +588,7 @@ export default function SBTiTargetsPage() {
     };
     const visible = filter === 'all' ? items : items.filter(t => health(t) === filter);
     return (
-      <div className="space-y-12 pt-3 pb-4" data-testid={`sbti-${key}-panel`}>
+      <div className="flex flex-col gap-10 pt-3 pb-4" data-testid={`sbti-${key}-panel`}>
         <SummaryCards termLabel={label} counts={counts} selected={filter} onSelect={setFilter} />
         {visible.length === 0 ? (
           <Card className="p-8 text-center text-text-muted">
