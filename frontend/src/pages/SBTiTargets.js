@@ -90,11 +90,11 @@ function SummaryCards({ termLabel, counts, selected, onSelect }) {
           type="button"
           onClick={() => onSelect(c.key)}
           aria-pressed={selected === c.key}
-          className={`rounded-xl border p-4 text-left shadow-sm transition-colors ${selected === c.key ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600/30' : 'border-stone-200 bg-white hover:border-stone-300'}`}
+          className={`rounded-xl border p-3.5 text-left shadow-sm transition-colors ${selected === c.key ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600/30' : 'border-stone-200 bg-white hover:border-stone-300'}`}
           data-testid={`sbti-summary-${c.key}`}
         >
-          <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><span className={`h-2 w-2 rounded-full ${c.dot}`} />{c.label || `All ${termLabel} targets`}</div>
-          <div className={`mt-2 text-3xl font-semibold tracking-tight ${c.num}`} data-testid={`sbti-summary-${c.key}-count`}>{counts[c.key]}</div>
+          <div className="flex items-center gap-2 text-xs font-medium text-stone-600"><span className={`h-2 w-2 rounded-full ${c.dot}`} />{c.label || `All ${termLabel} targets`}</div>
+          <div className={`mt-1.5 text-2xl font-semibold tracking-tight ${c.num}`} data-testid={`sbti-summary-${c.key}-count`}>{counts[c.key]}</div>
         </button>
       ))}
     </div>
@@ -136,7 +136,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h3 className="text-lg font-semibold text-stone-900">{target.target_name}</h3>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500" data-testid={`sbti-type-${target.id}`}>{TARGET_TYPES.find(t => t.value === target.target_type)?.label}</span>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${st.cls}`} data-testid={`sbti-status-${target.id}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${st.cls}`} data-testid={`sbti-status-${target.id}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
             </span>
           </div>
@@ -159,8 +159,8 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
 
       <div className="mt-6 grid items-center gap-x-10 gap-y-5 lg:grid-cols-[200px_1fr]">
         <div data-testid={`sbti-achievement-${target.id}`}>
-          <div className={`text-5xl font-semibold tracking-tight ${ach != null ? st.text : 'text-stone-400'}`}>{ach != null ? `${ach}%` : '—'}</div>
-          <div className="mt-1 text-sm text-stone-500">of the way from base to target</div>
+          <div className={`text-3xl font-semibold tracking-tight ${ach != null ? st.text : 'text-stone-400'}`}>{ach != null ? `${ach}%` : '—'}</div>
+          <div className="mt-1 text-xs text-stone-500">of the way from base to target</div>
         </div>
         <div className="space-y-4">
           <div className="h-3 w-full overflow-hidden rounded-full bg-stone-200">
@@ -280,7 +280,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
         return (
           <div className="mt-8">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium text-stone-700">Emissions Reduction Pathway</p>
+              <p className="text-sm font-semibold text-stone-900">Emissions Reduction Pathway</p>
               <div className="inline-flex rounded-full bg-stone-100 p-1" role="group" data-testid={`sbti-projection-toggle-${target.id}`}>
                 {[['linear', 'Linear'], ['bau', 'BAU']].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setProjection(k)} aria-pressed={projection === k}
@@ -331,7 +331,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                 )}
               </ComposedChart>
             </ResponsiveContainer>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-stone-600" data-testid={`sbti-legend-${target.id}`}>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-stone-600" data-testid={`sbti-legend-${target.id}`}>
               <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-stone-400" />Actual emissions</span>
               <span className="flex items-center gap-2"><span className="w-6 border-t-2 border-dashed border-amber-500" />{projLabel}</span>
               <span className="flex items-center gap-2"><span className="w-6 border-t-[3px] border-emerald-700" />Target path</span>
